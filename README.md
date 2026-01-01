@@ -63,9 +63,6 @@ This n8n workflow serves as an autonomous **AI Sales Agent**. It monitors a Gmai
 ## 👨‍💻 Author
 
 **Kimani BotLab**
-* *Website:* [Link to your site]
-* *Twitter/X:* [Link]
-* *LinkedIn:* [Link]
 
 ---
 *Note: This workflow relies on the specific JSON prompt structure defined in the `AI Agent` node.*
