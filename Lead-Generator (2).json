@@ -1,0 +1,228 @@
+{
+  "name": "Lead-Generator",
+  "nodes": [
+    {
+      "parameters": {
+        "pollTimes": {
+          "item": [
+            {
+              "mode": "everyMinute"
+            }
+          ]
+        },
+        "simple": false,
+        "filters": {
+          "labelIds": [
+            "INBOX",
+            "UNREAD"
+          ]
+        },
+        "options": {}
+      },
+      "type": "n8n-nodes-base.gmailTrigger",
+      "typeVersion": 1.3,
+      "position": [
+        -416,
+        -80
+      ],
+      "id": "f4f0c56c-b6db-4ee4-ab20-55eb3e00e14a",
+      "name": "Gmail Trigger",
+      "credentials": {
+        "gmailOAuth2": {
+          "id": "gXtqpcYkIrOLKMXf",
+          "name": "Gmail account 2"
+        }
+      }
+    },
+    {
+      "parameters": {
+        "options": {}
+      },
+      "type": "@n8n/n8n-nodes-langchain.lmChatGoogleGemini",
+      "typeVersion": 1,
+      "position": [
+        -224,
+        144
+      ],
+      "id": "d726cc5f-8abd-42ef-af6f-38bcd7c40572",
+      "name": "Google Gemini Chat Model",
+      "credentials": {
+        "googlePalmApi": {
+          "id": "ktlSQpCKHFxPcRcY",
+          "name": "Google Gemini(PaLM) Api rag"
+        }
+      }
+    },
+    {
+      "parameters": {
+        "promptType": "define",
+        "text": "=You are an elite Data Extraction Specialist for an Automation Agency.\nYour job is to ignore the \"fluff\" (stories, greetings, complaints) and hunt for specific data points in the email below.\n\nEMAIL CONTENT:\n{{ $json.text }}\n\nEXTRACTION RULES:\n1. LEAD NAME: Look for \"My name is [Name]\" or \"I am [Name]\". Extract the FULL name.\n2. COMPANY: Look for phrases like \"run a [Company]\", \"own [Company]\", or \"from [Company]\".\n3. BUDGET: Search specifically for \"$\" symbols, \"KES\", \"shillings\", or numbers associated with \"budget\" or \"set aside\".\n4. INTENT: What specific solution do they want? (e.g., \"Chatbot\", \"Automation\", \"App\"). Ignore their complaints about being busy.\n5. LEAD SCORE:\n   - \"Hot\": Specific Budget mentioned OR specific deadline (e.g., \"January\").\n   - \"Warm\": Asking for a solution but no specific numbers.\n   - \"Junk\": Spam or sales pitches.\n\nOUTPUT FORMAT (JSON ONLY):\n{\n\"lead_name\": \"String (First Last)\",\n\"company_name\": \"String (or 'Unknown')\",\n\"intent\": \"String (Max 10 words)\",\n\"budget\": \"String (Value found or 'Unknown')\",\n\"lead_score\": \"String (Hot, Warm, or Junk)\"\n}",
+        "options": {}
+      },
+      "type": "@n8n/n8n-nodes-langchain.agent",
+      "typeVersion": 3,
+      "position": [
+        -224,
+        -80
+      ],
+      "id": "3558e34a-4b43-4e97-855e-559005c46118",
+      "name": "AI Agent"
+    },
+    {
+      "parameters": {
+        "jsCode": "// 1. Get the input data safely\nconst item = items[0] ? items[0].json : {};\n\n// 2. Find the content (it checks 'output', 'text', and 'response' automatically)\nconst aiOutput = item.output || item.text || item.response || \"\";\n\nif (!aiOutput) {\n  // If empty, return a clear error so we know what happened\n  return { error: \"No output found from AI Agent\", debug_item: item };\n}\n\n// 3. Clean up Markdown (removes ```json and ```)\nconst cleanJson = aiOutput.toString()\n  .replace(/^```json\\s*/i, '') // Remove start ```json\n  .replace(/^```\\s*/i, '')     // Remove start ``` (generic)\n  .replace(/\\s*```$/i, '')     // Remove end ```\n  .trim();\n\n// 4. Try to Parse\ntry {\n  return JSON.parse(cleanJson);\n} catch (error) {\n  // If parsing fails, return the raw text so you can see why\n  return {\n    error: \"JSON Parse Failed\",\n    raw_output: aiOutput,\n    cleaned_output: cleanJson\n  };\n}"
+      },
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [
+        80,
+        -80
+      ],
+      "id": "e77d59bd-13ff-40e1-9ff4-5203b46faea0",
+      "name": "Code in JavaScript"
+    },
+    {
+      "parameters": {
+        "conditions": {
+          "options": {
+            "caseSensitive": true,
+            "leftValue": "",
+            "typeValidation": "strict",
+            "version": 2
+          },
+          "conditions": [
+            {
+              "id": "2d410aed-24ac-4fdd-9768-b004b691f8f6",
+              "leftValue": "={{ $json.lead_score }}",
+              "rightValue": "Hot",
+              "operator": {
+                "type": "string",
+                "operation": "equals",
+                "name": "filter.operator.equals"
+              }
+            },
+            {
+              "id": "19568f87-e134-4de0-89fb-e3e7ef86fe36",
+              "leftValue": "={{ $json.lead_score }}",
+              "rightValue": "Warm",
+              "operator": {
+                "type": "string",
+                "operation": "equals"
+              }
+            }
+          ],
+          "combinator": "or"
+        },
+        "options": {}
+      },
+      "type": "n8n-nodes-base.if",
+      "typeVersion": 2.2,
+      "position": [
+        240,
+        -80
+      ],
+      "id": "3b1b359e-4ac3-4e45-82a3-d1aa103b9eec",
+      "name": "If"
+    },
+    {
+      "parameters": {
+        "authentication": "oAuth2",
+        "select": "channel",
+        "channelId": {
+          "__rl": true,
+          "value": "C0A6A93G3V4",
+          "mode": "list",
+          "cachedResultName": "all-kimani-botlab"
+        },
+        "text": "=🚨 *NEW LEAD DETECTED* 🚨\n\n👤 *Name:* {{ $node[\"Code in JavaScript\"].json[\"lead_name\"] }}\n🏢 *Company:* {{ $node[\"Code in JavaScript\"].json[\"company_name\"] }}\n💰 *Budget:* {{ $node[\"Code in JavaScript\"].json[\"budget\"] }}\n🔥 *Score:* {{ $node[\"Code in JavaScript\"].json[\"lead_score\"] }}\n\n📝 *Intent:* {{ $node[\"Code in JavaScript\"].json[\"intent\"] }}",
+        "otherOptions": {
+          "includeLinkToWorkflow": false
+        }
+      },
+      "type": "n8n-nodes-base.slack",
+      "typeVersion": 2.3,
+      "position": [
+        480,
+        -96
+      ],
+      "id": "6f187717-b11c-4d4c-8af1-066564a9604c",
+      "name": "Send a message",
+      "webhookId": "4f4ff05a-a9b4-410a-9953-3e874a40fed7",
+      "credentials": {
+        "slackOAuth2Api": {
+          "id": "m33DLFO7xa5ESnzw",
+          "name": "Unnamed credential"
+        }
+      }
+    }
+  ],
+  "pinData": {},
+  "connections": {
+    "Gmail Trigger": {
+      "main": [
+        [
+          {
+            "node": "AI Agent",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Google Gemini Chat Model": {
+      "ai_languageModel": [
+        [
+          {
+            "node": "AI Agent",
+            "type": "ai_languageModel",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "AI Agent": {
+      "main": [
+        [
+          {
+            "node": "Code in JavaScript",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Code in JavaScript": {
+      "main": [
+        [
+          {
+            "node": "If",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "If": {
+      "main": [
+        [
+          {
+            "node": "Send a message",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    }
+  },
+  "active": true,
+  "settings": {
+    "executionOrder": "v1"
+  },
+  "versionId": "2e19354c-2db1-44ab-a8a7-fa0d8e0f77fc",
+  "meta": {
+    "templateCredsSetupCompleted": true,
+    "instanceId": "1a034bc3e5088bc6d45b7a543282ed15c25d893d41259419b5ae92c6c66a9326"
+  },
+  "id": "WbxvbxsLEhnb0s0H",
+  "tags": []
+}
